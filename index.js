@@ -189,6 +189,29 @@ export function setGenericPassword(
 }
 
 /**
+ * Saves the `username` and `password` combination for `service`.
+ * @param {string} username Associated username or e-mail to be saved.
+ * @param {string} password Associated password to be saved.
+ * @param {object} options A keychain options object.
+ * @param {string} label A label to identify the password in the keychain.
+ * @return {Promise} Resolves to `{ service, storage }` when successful
+ */
+export function setGenericPasswordWithLabel(
+  username: string,
+  password: string,
+  serviceOrOptions?: string | Options,
+  label: string
+): Promise<false | Result> {
+  const options = normalizeOptions(serviceOrOptions);
+  return RNKeychainManager.setGenericPasswordForOptions(
+    options,
+    username,
+    password,
+    label
+  );
+}
+
+/**
  * Fetches login combination for `service`.
  * @param {object} options A keychain options object.
  * @return {Promise} Resolves to `{ service, username, password, storage }` when successful
@@ -198,6 +221,20 @@ export function getGenericPassword(
 ): Promise<false | UserCredentials> {
   const options = normalizeOptions(serviceOrOptions);
   return RNKeychainManager.getGenericPasswordForOptions(options);
+}
+
+/**
+ * Fetches login combinations for `service` that match `label`.
+ * @param {object} options A keychain options object.
+ * @param {string} label A label to identify the password in the keychain.
+ * @return {Promise} Resolves to an array of `{ service, username, password, storage }` when successful
+ */
+export function getGenericPasswordsFromLabel(
+  serviceOrOptions?: string | Options,
+  label: string
+): Promise<false | UserCredentials[]> {
+  const options = normalizeOptions(serviceOrOptions);
+  return RNKeychainManager.getGenericPasswordsForOptions(options, label);
 }
 
 /**

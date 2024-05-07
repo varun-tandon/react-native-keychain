@@ -371,6 +371,27 @@ RCT_EXPORT_METHOD(setGenericPasswordForOptions:(NSDictionary *)options
   [self insertKeychainEntry:attributes withOptions:options resolver:resolve rejecter:reject];
 }
 
+RCT_EXPORT_METHOD(setGenericPasswordForOptions:(NSDictionary *)options
+                  withUsername:(NSString *)username
+                  withPassword:(NSString *)password
+                  withLabel: (NSString *)label
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+  NSString *service = serviceValue(options);
+  NSDictionary *attributes = attributes = @{
+    (__bridge NSString *)kSecClass: (__bridge id)(kSecClassGenericPassword),
+    (__bridge NSString *)kSecAttrService: service,
+    (__bridge NSString *)kSecAttrAccount: username,
+    (__bridge NSString *)kSecValueData: [password dataUsingEncoding:NSUTF8StringEncoding],
+    (__bridge NSString *)kSecAttrLabel: label
+  };
+
+  [self deletePasswordsForService:service];
+
+  [self insertKeychainEntry:attributes withOptions:options resolver:resolve rejecter:reject];
+}
+
 RCT_EXPORT_METHOD(getGenericPasswordForOptions:(NSDictionary * __nullable)options
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
@@ -418,6 +439,54 @@ RCT_EXPORT_METHOD(getGenericPasswordForOptions:(NSDictionary * __nullable)option
       result[@"password"] = password;
   }
   return resolve([result copy]);
+}
+
+RCT_EXPORT_METHOD(getGenericPasswordsForOptions:(NSDictionary * __nullable)options
+                  withLabel: (NSString *)label
+                  resolver:(RCTPromiseResolveBlock)resolve
+                  rejecter:(RCTPromiseRejectBlock)reject)
+{
+    NSString *service = serviceValue(options);
+    NSString *authenticationPrompt = authenticationPromptValue(options);
+
+    NSDictionary *query = @{
+        (__bridge NSString *)kSecClass: (__bridge id)(kSecClassGenericPassword),
+        (__bridge NSString *)kSecReturnData: (__bridge id)kCFBooleanTrue,
+        (__bridge NSString *)kSecMatchLimit: (__bridge NSString *)kSecMatchLimitAll,
+        (__bridge NSString *)kSecUseOperationPrompt: authenticationPrompt ? authenticationPrompt : @"",
+        (__bridge NSString *)kSecAttrLabel: label ? label : @"",
+        (__bridge NSString *)kSecReturnAttributes: (__bridge id)kCFBooleanTrue
+    };
+
+    CFTypeRef result = NULL;
+    OSStatus osStatus = SecItemCopyMatching((__bridge CFDictionaryRef)query, &result);
+
+    if (osStatus == noErr) {
+        NSArray *foundItems = (__bridge_transfer NSArray *)result;
+        NSMutableArray *resultsArray = [NSMutableArray arrayWithCapacity:[foundItems count]];
+
+        for (NSDictionary *item in foundItems) {
+            NSData *passwordData = [item objectForKey:(__bridge id)kSecValueData];
+            NSString *password = [[NSString alloc] initWithData:passwordData encoding:NSUTF8StringEncoding];
+            NSString *username = [item objectForKey:(__bridge id)(kSecAttrAccount)];
+
+            NSMutableDictionary *resultDict = [@{@"storage": @"keychain"} mutableCopy];
+            if (service) {
+                resultDict[@"service"] = service;
+            }
+            if (username) {
+                resultDict[@"username"] = username;
+            }
+            if (password) {
+                resultDict[@"password"] = password;
+            }
+            [resultsArray addObject:[resultDict copy]];
+        }
+        resolve(resultsArray);
+    } else {
+        NSError *error = [NSError errorWithDomain:NSOSStatusErrorDomain code:osStatus userInfo:nil];
+        rejectWithError(reject, error);
+    }
 }
 
 RCT_EXPORT_METHOD(resetGenericPasswordForOptions:(NSDictionary *)options
